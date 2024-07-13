@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Candlestick Chart with MACD</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 1rem;
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .chart-container {
+            width: 80%;
+        }
+        #candlestickChart, #macdChart {
+            height: 45%;
+        }
+        #spacer {
+            height: 5%;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <label for="visiblePoints">Number of data points to display:</label>
+        <select id="visiblePoints">
+            <script>
+                for (let i = 1; i <= 15; i++) {
+                    document.write('<option value="' + i + '">' + i + '</option>');
+                }
+            </script>
+        </select>
+
+        <label for="startDate">Start Date (YYYY-MM-DD):</label>
+        <input type="date" id="startDate" name="startDate">
+    </div>
+
+    <div class="chart-container">
+        <div id="candlestickChart"></div>
+        <div id="spacer"></div>
+        <div id="macdChart"></div>
+    </div>
+
+    <script>
+        let data = [];
+        let currentIndex = 0;
+        let visiblePoints = 1;
+
+        // Function to load data from CSV
+        async function loadData() {
+            const response = await fetch('data.csv');
+            const csv = await response.text();
+            const rows = csv.split('\n').slice(1);
+            data = rows.map(row => {
+                const [Date, Open, High, Low, Close, Volume, MACD] = row.split(',');
+                return { Date, Open: parseFloat(Open), High: parseFloat(High), Low: parseFloat(Low), Close: parseFloat(Close), MACD: parseFloat(MACD) };
+            }).filter(row => row.Date); // Ensure no empty rows are included
+        }
+
+        // Function to update the charts
+        function updateCharts() {
+            if (currentIndex < data.length) {
+                const start = Math.max(0, currentIndex - visiblePoints + 1);
+                const currentData = data.slice(start, currentIndex + 1);
+
+                const candlestickTrace = {
+                    x: currentData.map(d => d.Date),
+                    close: currentData.map(d => d.Close),
+                    high: currentData.map(d => d.High),
+                    low: currentData.map(d => d.Low),
+                    open: currentData.map(d => d.Open),
+                    type: 'candlestick'
+                };
+
+                const macdTrace = {
+                    x: currentData.map(d => d.Date),
+                    y: currentData.map(d => d.MACD),
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: 'blue' }
+                };
+
+                const candlestickLayout = {
+                    title: 'Candlestick Chart',
+                    xaxis: { title: 'Date' },
+                    yaxis: { title: 'Price' },
+                    margin: { t: 30, b: 30 }
+                };
+
+                const macdLayout = {
+                    title: 'MACD Chart',
+                    xaxis: { title: 'Date' },
+                    yaxis: { title: 'MACD', autorange: true, zeroline: true },
+                    margin: { t: 30, b: 30 }
+                };
+
+                Plotly.react('candlestickChart', [candlestickTrace], candlestickLayout);
+                Plotly.react('macdChart', [macdTrace], macdLayout);
+
+                currentIndex++;
+            } else {
+                clearInterval(updateInterval); // Stop the interval when all data is displayed
+            }
+        }
+
+        // Event listener for dropdown change
+        document.getElementById('visiblePoints').addEventListener('change', (event) => {
+            visiblePoints = parseInt(event.target.value);
+            updateCharts();
+        });
+
+        // Event listener for start date change
+        document.getElementById('startDate').addEventListener('change', (event) => {
+            const startDate = event.target.value;
+            const startIndex = data.findIndex(d => d.Date === startDate);
+
+            if (startIndex !== -1) {
+                currentIndex = startIndex;
+                updateCharts();
+            } else {
+                alert('Start date not found in data.');
+            }
+        });
+
+        // Load data and start the update loop
+        let updateInterval;
+        loadData().then(() => {
+            updateCharts();
+            updateInterval = setInterval(updateCharts, 5000);
+        });
+    </script>
+</body>
+</html>
